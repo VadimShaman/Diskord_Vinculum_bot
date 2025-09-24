@@ -2,8 +2,6 @@ import os
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
-from Relationship_System import *
-from Cog import *
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -71,7 +69,9 @@ async def помощь(ctx):
 @bot.command()
 async def перезагрузить(ctx):
     """Перезагрузить коги (только для владельца)"""
-    if ctx.author.id != ваш_id_владельца:  # Замените на ваш ID
+    # Замените YOUR_OWNER_ID на ваш реальный Discord user ID (число, например, 1234567890)
+    YOUR_OWNER_ID = 1234567890  # <-- ВСТАВЬТЕ СЮДА СВОЙ ID
+    if ctx.author.id != YOUR_OWNER_ID:
         return await ctx.send("❌ Недостаточно прав!")
 
     try:

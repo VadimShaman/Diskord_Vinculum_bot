@@ -3,8 +3,10 @@ from discord.ext import commands
 import json
 import os
 import random
+import ast  # Для безопасного парсинга rel_key
 from typing import Dict, List
-from Relationship_System import *
+from Relationship_System import RelationshipSystem
+
 
 class RelationshipCog(commands.Cog):
     def __init__(self, bot):
@@ -26,13 +28,17 @@ class RelationshipCog(commands.Cog):
     @commands.command(name="добавить")
     async def add_character(self, ctx, *, name: str):
         """Добавить нового персонажа"""
+        name = name.strip()  # Удаляем лишние пробелы
+        if not name:
+            await ctx.send("❌ Имя не может быть пустым!")
+            return
         if name in self.system.characters:
             await ctx.send(f"❌ Персонаж `{name}` уже существует!")
             return
 
         self.system.characters[name] = {
             "added_by": ctx.author.id,
-            "added_date": str(ctx.message.created_at),
+            "added_date": ctx.message.created_at.isoformat(),
         }
         self.system.save_data()
 
@@ -46,15 +52,27 @@ class RelationshipCog(commands.Cog):
     @commands.command(name="удалить")
     async def remove_character(self, ctx, *, name: str):
         """Удалить персонажа"""
+        name = name.strip()
+        if not name:
+            await ctx.send("❌ Имя не может быть пустым!")
+            return
         if name not in self.system.characters:
             await ctx.send(f"❌ Персонаж `{name}` не найден!")
             return
 
         del self.system.characters[name]
-        # Удаляем все отношения с этим персонажем
-        for rel_key in list(self.system.relationships.keys()):
-            if name in rel_key:
-                del self.system.relationships[rel_key]
+        # Удаляем все отношения с этим персонажем (безопасный парсинг ключей)
+        to_remove = []
+        for rel_key in self.system.relationships:
+            try:
+                chars = ast.literal_eval(rel_key)
+                if name in chars:
+                    to_remove.append(rel_key)
+            except (ValueError, SyntaxError):
+                # Если ключ поврежден, пропускаем
+                continue
+        for rel_key in to_remove:
+            del self.system.relationships[rel_key]
 
         self.system.save_data()
         await ctx.send(f"✅ Персонаж `{name}` и все его отношения удалены!")
@@ -99,7 +117,7 @@ class RelationshipCog(commands.Cog):
                         "value": roll,
                         "description": self.relationship_descriptions[roll],
                         "rolled_by": ctx.author.id,
-                        "roll_date": str(ctx.message.created_at),
+                        "roll_date": ctx.message.created_at.isoformat(),
                     }
                     relationships_created += 1
 
@@ -121,7 +139,7 @@ class RelationshipCog(commands.Cog):
 
         characters = sorted(self.system.characters.keys())
 
-        # Создаем таблицу
+        # Создаем таблицу (примечание: длинные имена могут обрезаться)
         table = "```\n"
         table += " " * 15
         for char in characters:
@@ -164,18 +182,25 @@ class RelationshipCog(commands.Cog):
 
         embed = discord.Embed(title="💞 Детальные отношения", color=0xFF69B4)
 
-        if character_name and character_name not in self.system.characters:
-            await ctx.send(f"❌ Персонаж `{character_name}` не найден!")
-            return
-
         if character_name:
+            character_name = character_name.strip()
+            if character_name not in self.system.characters:
+                await ctx.send(f"❌ Персонаж `{character_name}` не найден!")
+                return
+
             # Отношения для конкретного персонажа
             relationships = []
             for rel_key, rel_data in self.system.relationships.items():
-                chars = eval(rel_key)
-                if character_name in chars:
-                    other_char = chars[0] if chars[1] == character_name else chars[1]
-                    relationships.append((other_char, rel_data))
+                try:
+                    chars = ast.literal_eval(rel_key)
+                    if character_name in chars:
+                        other_char = (
+                            chars[0] if chars[1] == character_name else chars[1]
+                        )
+                        relationships.append((other_char, rel_data))
+                except (ValueError, SyntaxError):
+                    # Если ключ поврежден, пропускаем
+                    continue
 
             if not relationships:
                 embed.description = f"У {character_name} пока нет отношений."
@@ -189,47 +214,3 @@ class RelationshipCog(commands.Cog):
         else:
             # Все отношения
             desc = ""
-            for rel_key, rel_data in sorted(
-                self.system.relationships.items(),
-                key=lambda x: x[1]["value"],
-                reverse=True,
-            ):
-                chars = eval(rel_key)
-                desc += f"**{chars[0]}** ❤ **{chars[1]}**: {rel_data['value']} - {rel_data['description']}\n"
-
-            embed.description = desc
-
-        await ctx.send(embed=embed)
-
-    @commands.command(name="перебросить")
-    async def reroll_relationship(self, ctx, char1: str, char2: str):
-        """Перебросить отношение между двумя персонажами"""
-        rel_key = str(tuple(sorted([char1, char2])))
-
-        if rel_key not in self.system.relationships:
-            await ctx.send(f"❌ Отношения между `{char1}` и `{char2}` не найдены!")
-            return
-
-        new_roll = random.randint(1, 10)
-        old_roll = self.system.relationships[rel_key]["value"]
-
-        self.system.relationships[rel_key].update(
-            {
-                "value": new_roll,
-                "description": self.relationship_descriptions[new_roll],
-                "rerolled_by": ctx.author.id,
-                "reroll_date": str(ctx.message.created_at),
-            }
-        )
-        self.system.save_data()
-
-        embed = discord.Embed(
-            title="🎲 Отношение переброшено!",
-            description=f"**{char1}** ❤ **{char2}**\nСтарое: {old_roll} → Новое: {new_roll}\n{self.relationship_descriptions[new_roll]}",
-            color=0xFFA500,
-        )
-        await ctx.send(embed=embed)
-
-
-async def setup(bot):
-    await bot.add_cog(RelationshipCog(bot))
