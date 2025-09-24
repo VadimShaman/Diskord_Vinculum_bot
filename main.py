@@ -1,7 +1,20 @@
 import os
+import sys  # For UTF-8 console reconfiguration
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
+from cogs import *
+
+# Force UTF-8 encoding for console output (fixes UnicodeEncodeError on Windows)
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except AttributeError:
+    # Fallback for older Python versions (not needed for 3.12)
+    import io
+
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -21,21 +34,21 @@ async def on_ready():
     print(f"✅ Бот {bot.user} запущен!")
     print(f"📊 Бот работает на {len(bot.guilds)} серверах")
 
-    # Загружаем коги
+    # Загружаем коги (теперь синхронно)
     try:
-        await load_cogs()
+        load_cogs()  # No await needed
         print("✅ Все коги загружены!")
     except Exception as e:
         print(f"❌ Ошибка загрузки когов: {e}")
 
 
-async def load_cogs():
+def load_cogs():  # Changed to synchronous function
     """Загрузка всех когов"""
     cogs = ["cogs.relationships"]
 
     for cog in cogs:
         try:
-            await bot.load_extension(cog)
+            bot.load_extension(cog)  # Synchronous call, no await
             print(f"✅ Загружен ког: {cog}")
         except Exception as e:
             print(f"❌ Ошибка загрузки {cog}: {e}")
@@ -75,7 +88,15 @@ async def перезагрузить(ctx):
         return await ctx.send("❌ Недостаточно прав!")
 
     try:
-        await load_cogs()
+        # Для перезагрузки: сначала выгружаем, потом загружаем заново
+        for cog in ["cogs.relationships"]:
+            try:
+                bot.unload_extension(cog)
+                print(f"🔄 Выгружен ког: {cog}")
+            except Exception as e:
+                print(f"⚠️ Ошибка выгрузки {cog}: {e}")
+
+        load_cogs()  # Synchronous reload
         await ctx.send("✅ Коги перезагружены!")
     except Exception as e:
         await ctx.send(f"❌ Ошибка: {e}")

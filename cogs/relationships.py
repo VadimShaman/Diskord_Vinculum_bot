@@ -214,3 +214,58 @@ class RelationshipCog(commands.Cog):
         else:
             # Все отношения
             desc = ""
+            for rel_key, rel_data in sorted(
+                self.system.relationships.items(),
+                key=lambda x: x[1]["value"],
+                reverse=True,
+            ):
+                try:
+                    chars = ast.literal_eval(rel_key)
+                    desc += f"**{chars[0]}** ❤ **{chars[1]}**: {rel_data['value']} - {rel_data['description']}\n"
+                except (ValueError, SyntaxError):
+                    # Если ключ поврежден, пропускаем
+                    continue
+
+            embed.description = desc
+
+        await ctx.send(embed=embed)
+
+    @commands.command(name="перебросить")
+    async def reroll_relationship(self, ctx, char1: str, char2: str):
+        """Перебросить отношение между двумя персонажами"""
+        char1 = char1.strip()
+        char2 = char2.strip()
+        if not char1 or not char2:
+            await ctx.send("❌ Имена персонажей не могут быть пустыми!")
+            return
+
+        rel_key = str(tuple(sorted([char1, char2])))
+
+        if rel_key not in self.system.relationships:
+            await ctx.send(f"❌ Отношения между `{char1}` и `{char2}` не найдены!")
+            return
+
+        new_roll = random.randint(1, 10)
+        old_roll = self.system.relationships[rel_key]["value"]
+
+        self.system.relationships[rel_key].update(
+            {
+                "value": new_roll,
+                "description": self.relationship_descriptions[new_roll],
+                "rerolled_by": ctx.author.id,
+                "reroll_date": ctx.message.created_at.isoformat(),
+            }
+        )
+        self.system.save_data()
+
+        embed = discord.Embed(
+            title="🎲 Отношение переброшено!",
+            description=f"**{char1}** ❤ **{char2}**\nСтарое: {old_roll} → Новое: {new_roll}\n{self.relationship_descriptions[new_roll]}",
+            color=0xFFA500,
+        )
+        await ctx.send(embed=embed)
+
+
+# Synchronous setup function (required for cog extensions)
+def setup(bot):
+    bot.add_cog(RelationshipCog(bot))
