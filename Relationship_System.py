@@ -5,7 +5,6 @@ import os
 import random
 from typing import Dict, List
 
-
 class RelationshipSystem:
     def __init__(self):
         self.characters_file = "characters.json"

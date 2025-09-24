@@ -1,7 +1,10 @@
 import discord
 from discord.ext import commands
+import json
+import os
 import random
-
+from typing import Dict, List
+from Relationship_System import *
 
 class RelationshipCog(commands.Cog):
     def __init__(self, bot):
@@ -24,7 +27,7 @@ class RelationshipCog(commands.Cog):
     async def add_character(self, ctx, *, name: str):
         """Добавить нового персонажа"""
         if name in self.system.characters:
-            await ctx.send(f"Персонаж `{name}` уже существует!")
+            await ctx.send(f"❌ Персонаж `{name}` уже существует!")
             return
 
         self.system.characters[name] = {
@@ -35,7 +38,7 @@ class RelationshipCog(commands.Cog):
 
         embed = discord.Embed(
             title="✅ Персонаж добавлен",
-            description=f"Персонаж `{name}` успешно добавлен в систему!",
+            description=f"Персонаж `{name}` успешно добавлен!",
             color=0x00FF00,
         )
         await ctx.send(embed=embed)
@@ -44,7 +47,7 @@ class RelationshipCog(commands.Cog):
     async def remove_character(self, ctx, *, name: str):
         """Удалить персонажа"""
         if name not in self.system.characters:
-            await ctx.send(f"Персонаж `{name}` не найден!")
+            await ctx.send(f"❌ Персонаж `{name}` не найден!")
             return
 
         del self.system.characters[name]
@@ -54,13 +57,29 @@ class RelationshipCog(commands.Cog):
                 del self.system.relationships[rel_key]
 
         self.system.save_data()
-        await ctx.send(f"Персонаж `{name}` и все его отношения удалены!")
+        await ctx.send(f"✅ Персонаж `{name}` и все его отношения удалены!")
+
+    @commands.command(name="персонажи")
+    async def list_characters(self, ctx):
+        """Показать список всех персонажей"""
+        if not self.system.characters:
+            await ctx.send("❌ Пока нет добавленных персонажей!")
+            return
+
+        characters = list(self.system.characters.keys())
+        embed = discord.Embed(
+            title="👥 Список персонажей",
+            description=f"Всего персонажей: {len(characters)}\n\n"
+            + "\n".join([f"• {char}" for char in sorted(characters)]),
+            color=0x9370DB,
+        )
+        await ctx.send(embed=embed)
 
     @commands.command(name="бросок")
     async def roll_relationships(self, ctx):
         """Бросить кубы для определения отношений"""
         if len(self.system.characters) < 2:
-            await ctx.send("Нужно как минимум 2 персонажа для определения отношений!")
+            await ctx.send("❌ Нужно как минимум 2 персонажа!")
             return
 
         characters = list(self.system.characters.keys())
@@ -68,17 +87,15 @@ class RelationshipCog(commands.Cog):
 
         for i, char1 in enumerate(characters):
             for j, char2 in enumerate(characters):
-                if i >= j:  # Чтобы не дублировать отношения A-B и B-A
+                if i >= j:  # Чтобы не дублировать отношения
                     continue
 
-                # Создаем ключ для отношений (сортированный, чтобы A-B и B-A были одинаковыми)
-                rel_key = tuple(sorted([char1, char2]))
+                rel_key = str(tuple(sorted([char1, char2])))
 
-                if str(rel_key) not in self.system.relationships:
-                    # Бросаем d10 для отношения
+                if rel_key not in self.system.relationships:
                     roll = random.randint(1, 10)
 
-                    self.system.relationships[str(rel_key)] = {
+                    self.system.relationships[rel_key] = {
                         "value": roll,
                         "description": self.relationship_descriptions[roll],
                         "rolled_by": ctx.author.id,
@@ -90,7 +107,7 @@ class RelationshipCog(commands.Cog):
 
         embed = discord.Embed(
             title="🎲 Отношения определены!",
-            description=f"Создано {relationships_created} новых отношений между персонажами.",
+            description=f"Создано {relationships_created} новых отношений.",
             color=0x0099FF,
         )
         await ctx.send(embed=embed)
@@ -99,19 +116,16 @@ class RelationshipCog(commands.Cog):
     async def show_relationship_table(self, ctx):
         """Показать таблицу отношений"""
         if not self.system.relationships:
-            await ctx.send("Отношения еще не определены! Используйте команду `!бросок`")
+            await ctx.send("❌ Отношения еще не определены! Используйте `!бросок`")
             return
 
         characters = sorted(self.system.characters.keys())
-        if len(characters) == 0:
-            await ctx.send("Нет добавленных персонажей!")
-            return
 
         # Создаем таблицу
         table = "```\n"
         table += " " * 15
         for char in characters:
-            table += f"{char[:8]:>8} "  # Обрезаем длинные имена
+            table += f"{char[:8]:>8} "
         table += "\n" + "-" * (15 + 9 * len(characters)) + "\n"
 
         for char1 in characters:
@@ -133,7 +147,7 @@ class RelationshipCog(commands.Cog):
             title="📊 Таблица отношений", description=table, color=0xFFD700
         )
 
-        # Добавляем легенду
+        # Легенда
         legend = ""
         for value, desc in self.relationship_descriptions.items():
             legend += f"{value}: {desc}\n"
@@ -143,30 +157,28 @@ class RelationshipCog(commands.Cog):
 
     @commands.command(name="отношения")
     async def show_detailed_relationships(self, ctx, *, character_name: str = None):
-        """Показать подробные отношения конкретного персонажа"""
-        if character_name and character_name not in self.system.characters:
-            await ctx.send(f"Персонаж `{character_name}` не найден!")
-            return
-
+        """Показать подробные отношения"""
         if not self.system.relationships:
-            await ctx.send("Отношения еще не определены!")
+            await ctx.send("❌ Отношения еще не определены!")
             return
 
         embed = discord.Embed(title="💞 Детальные отношения", color=0xFF69B4)
 
+        if character_name and character_name not in self.system.characters:
+            await ctx.send(f"❌ Персонаж `{character_name}` не найден!")
+            return
+
         if character_name:
-            # Показать отношения для конкретного персонажа
+            # Отношения для конкретного персонажа
             relationships = []
             for rel_key, rel_data in self.system.relationships.items():
-                chars = eval(rel_key)  # Безопасно т.к. наши ключи - кортежи
+                chars = eval(rel_key)
                 if character_name in chars:
                     other_char = chars[0] if chars[1] == character_name else chars[1]
                     relationships.append((other_char, rel_data))
 
             if not relationships:
-                embed.description = (
-                    f"У {character_name} пока нет определенных отношений."
-                )
+                embed.description = f"У {character_name} пока нет отношений."
             else:
                 desc = ""
                 for other_char, rel_data in sorted(
@@ -175,7 +187,7 @@ class RelationshipCog(commands.Cog):
                     desc += f"**{other_char}**: {rel_data['value']} - {rel_data['description']}\n"
                 embed.description = f"Отношения **{character_name}**:\n\n{desc}"
         else:
-            # Показать все отношения
+            # Все отношения
             desc = ""
             for rel_key, rel_data in sorted(
                 self.system.relationships.items(),
@@ -189,32 +201,15 @@ class RelationshipCog(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(name="персонажи")
-    async def list_characters(self, ctx):
-        """Показать список всех персонажей"""
-        if not self.system.characters:
-            await ctx.send("Пока нет добавленных персонажей!")
-            return
-
-        characters = list(self.system.characters.keys())
-        embed = discord.Embed(
-            title="👥 Список персонажей",
-            description=f"Всего персонажей: {len(characters)}\n\n"
-            + "\n".join([f"• {char}" for char in sorted(characters)]),
-            color=0x9370DB,
-        )
-        await ctx.send(embed=embed)
-
     @commands.command(name="перебросить")
     async def reroll_relationship(self, ctx, char1: str, char2: str):
         """Перебросить отношение между двумя персонажами"""
         rel_key = str(tuple(sorted([char1, char2])))
 
         if rel_key not in self.system.relationships:
-            await ctx.send(f"Отношения между `{char1}` и `{char2}` не найдены!")
+            await ctx.send(f"❌ Отношения между `{char1}` и `{char2}` не найдены!")
             return
 
-        # Новый бросок
         new_roll = random.randint(1, 10)
         old_roll = self.system.relationships[rel_key]["value"]
 
