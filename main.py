@@ -3,8 +3,7 @@ import sys  # For UTF-8 console reconfiguration
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
-import traceback  # Added for detailed error traces
-from cogs import *
+import traceback  # For detailed error traces
 
 # Force UTF-8 encoding for console output (fixes UnicodeEncodeError on Windows)
 try:
@@ -37,31 +36,49 @@ async def on_ready():
     print(f"✅ Бот {bot.user} запущен!")
     print(f"📊 Бот работает на {len(bot.guilds)} серверах")
 
-    # Debug: Выводим список всех команд для проверки загрузки
-    print("📋 Загруженные команды:", [cmd.name for cmd in bot.commands])
+    # Debug: Выводим список всех команд для проверки загрузки (до загрузки когов)
+    print("📋 Загруженные команды (до когов):", [cmd.name for cmd in bot.commands])
 
-    # Загружаем коги (теперь синхронно)
+    # Загружаем коги (теперь асинхронно)
     try:
-        load_cogs()  # No await needed
+        await load_cogs()  # Await the async function
         print("✅ Все коги загружены!")
 
-        # New Debug: Check if cog is actually added
+        # Enhanced Debug: Check if cog is actually added
         print("🔍 Загруженные коги:", list(bot.cogs.keys()))
+        print(
+            "📋 Полный список команд (после когов):", [cmd.name for cmd in bot.commands]
+        )
+        if not bot.cogs:
+            print("⚠️ ВНИМАНИЕ: Ни один ког не загружен! Проверьте ошибки выше.")
     except Exception as e:
         print(f"❌ Ошибка загрузки когов: {e}")
         traceback.print_exc()  # Full traceback for debugging
 
 
-def load_cogs():  # Synchronous function
-    """Загрузка всех когов"""
+async def load_cogs():  # Async function for Discord.py 2.x
+    """Загрузка всех когов (асинхронно)"""
     cogs = ["cogs.relationships"]
 
-    for cog in cogs:
+    for cog_name in cogs:
         try:
-            bot.load_extension(cog)  # Synchronous call, no await
-            print(f"✅ Загружен ког: {cog}")
+            print(f"🔍 Загружаем ког: {cog_name}")
+            await bot.load_extension(cog_name)  # Await the async method
+            print(f"✅ Загружен ког: {cog_name}")
+        except discord.ext.commands.ExtensionNotFound:
+            print(f"❌ Ког {cog_name} не найден (проверьте путь/файл)")
+        except discord.ext.commands.ExtensionAlreadyLoaded:
+            print(f"⚠️ Ког {cog_name} уже загружен")
+        except discord.ext.commands.NoEntryPointError:
+            print(f"❌ Ког {cog_name} не имеет функции setup!")
+        except discord.ext.commands.ExtensionFailed as e:
+            print(f"❌ Загрузка {cog_name} провалилась (setup error): {e}")
+            print(
+                "💡 Проверьте async def setup(bot) и await bot.add_cog в cogs/relationships.py"
+            )
+            traceback.print_exc()  # Full traceback
         except Exception as e:
-            print(f"❌ Ошибка загрузки {cog}: {e}")
+            print(f"❌ Неожиданная ошибка загрузки {cog_name}: {e}")
             traceback.print_exc()  # Full traceback, e.g., import errors
 
 
@@ -81,7 +98,7 @@ async def on_command_error(ctx, error):
         )
         await ctx.send(embed=embed, delete_after=10)  # Автоудаление через 10 сек
 
-        # New Debug: Log full error to console
+        # Debug: Log full error to console
         print(f"⚠️ CommandNotFound для '{ctx.invoked_with}' от {ctx.author}: {error}")
         traceback.print_exc()
     else:
@@ -129,15 +146,25 @@ async def перезагрузить(ctx):
         return await ctx.send("❌ Недостаточно прав!")
 
     try:
-        # Для перезагрузки: сначала выгружаем, потом загружаем заново
+        # Для перезагрузки: используем reload_extension (async в 2.x)
         for cog in ["cogs.relationships"]:
             try:
-                bot.unload_extension(cog)
-                print(f"🔄 Выгружен ког: {cog}")
+                await bot.reload_extension(cog)  # Await reload (unload + load)
+                print(f"🔄 Перезагружен ког: {cog}")
+            except discord.ext.commands.ExtensionFailed as e:
+                print(f"❌ Перезагрузка {cog} провалилась (setup error): {e}")
+                await ctx.send(f"⚠️ Ошибка перезагрузки {cog}: {e}")
             except Exception as e:
-                print(f"⚠️ Ошибка выгрузки {cog}: {e}")
+                print(f"⚠️ Ошибка перезагрузки {cog}: {e}")
+                # Fallback: unload then load
+                try:
+                    await bot.unload_extension(cog)
+                    await bot.load_extension(cog)
+                    print(f"🔄 Перезагружен через unload/load: {cog}")
+                except Exception as fallback_e:
+                    print(f"❌ Fallback failed for {cog}: {fallback_e}")
+                    await ctx.send(f"❌ Fallback failed: {fallback_e}")
 
-        load_cogs()  # Synchronous reload
         await ctx.send("✅ Коги перезагружены!")
     except Exception as e:
         await ctx.send(f"❌ Ошибка: {e}")

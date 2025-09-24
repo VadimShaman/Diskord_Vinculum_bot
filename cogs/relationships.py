@@ -1,4 +1,6 @@
-import traceback
+# Module-level debug: Confirm file is loaded
+print("🔍 Модуль cogs.relationships загружен (файл найден)!")
+
 import discord
 from discord.ext import commands
 import json
@@ -6,28 +8,46 @@ import os
 import random
 import ast  # Для безопасного парсинга rel_key
 from typing import Dict, List
+import traceback  # For error traces
 
-# Debug: Test import before using
-try:
-    from Relationship_System import RelationshipSystem
-
-    print("✅ Импорт RelationshipSystem успешен!")  # This will print on load
-except ImportError as e:
-    print(f"❌ Ошибка импорта RelationshipSystem: {e}")
-    traceback.print_exc()  # Requires import traceback at top, but for simplicity, assume it's handled in main
+# Lazy import: Import RelationshipSystem only when needed
+RelationshipSystem = None
 
 
 class RelationshipCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         try:
+            global RelationshipSystem
+            if RelationshipSystem is None:
+                from Relationship_System import RelationshipSystem
+
+                print("✅ Импорт RelationshipSystem успешен в __init__!")
             self.system = RelationshipSystem()
+            print(f"✅ RelationshipCog инициализирован для {bot.user}!")
+        except ImportError as e:
+            print(f"❌ ImportError RelationshipSystem в __init__: {e}")
+            traceback.print_exc()
+
+            # Fallback: Dummy system for testing (remove in production)
+            class DummySystem:
+                def __init__(self):
+                    self.characters = {}
+                    self.relationships = {}
+
+                def save_data(self):
+                    pass
+
+                def load_data(self):
+                    pass
+
+            self.system = DummySystem()
             print(
-                f"✅ RelationshipCog инициализирован для {bot.user}!"
-            )  # Confirm init success
+                "⚠️ Используется dummy RelationshipSystem (команды могут работать частично)"
+            )
         except Exception as e:
             print(f"❌ Ошибка инициализации RelationshipCog: {e}")
-            traceback.print_exc()  # Full error if system fails
+            traceback.print_exc()
             raise  # Re-raise to prevent partial load
 
         self.relationship_descriptions = {
@@ -84,17 +104,14 @@ class RelationshipCog(commands.Cog):
             return
 
         del self.system.characters[name]
-        # Удаляем все отношения с этим персонажем (безопасный парсинг ключей)
+        # Удаляем все исходящие (name → other) и входящие (other → name) отношения
         to_remove = []
-        for rel_key in list(
-            self.system.relationships
-        ):  # Use list() to avoid runtime modification
+        for rel_key in list(self.system.relationships):
             try:
                 chars = ast.literal_eval(rel_key)
-                if name in chars:
+                if name in chars:  # Either direction
                     to_remove.append(rel_key)
             except (ValueError, SyntaxError):
-                # Если ключ поврежден, пропускаем
                 continue
         for rel_key in to_remove:
             del self.system.relationships[rel_key]
@@ -120,7 +137,7 @@ class RelationshipCog(commands.Cog):
 
     @commands.command(name="бросок")
     async def roll_relationships(self, ctx):
-        """Бросить кубы для определения отношений"""
+        """Бросить кубы для определения отношений (теперь направленные)"""
         if len(self.system.characters) < 2:
             await ctx.send("❌ Нужно как минимум 2 персонажа!")
             return
@@ -128,12 +145,12 @@ class RelationshipCog(commands.Cog):
         characters = list(self.system.characters.keys())
         relationships_created = 0
 
-        for i, char1 in enumerate(characters):
-            for j, char2 in enumerate(characters):
-                if i >= j:  # Чтобы не дублировать отношения
+        for char1 in characters:
+            for char2 in characters:
+                if char1 == char2:  # No self-relation
                     continue
 
-                rel_key = str(tuple(sorted([char1, char2])))
+                rel_key = str((char1, char2))  # Directed: (from, to), no sorting
 
                 if rel_key not in self.system.relationships:
                     roll = random.randint(1, 10)
@@ -150,34 +167,34 @@ class RelationshipCog(commands.Cog):
 
         embed = discord.Embed(
             title="🎲 Отношения определены!",
-            description=f"Создано {relationships_created} новых отношений.",
+            description=f"Создано {relationships_created} направленных отношений.",
             color=0x0099FF,
         )
         await ctx.send(embed=embed)
 
     @commands.command(name="таблица")
     async def show_relationship_table(self, ctx):
-        """Показать таблицу отношений"""
+        """Показать таблицу отношений (направленная матрица)"""
         if not self.system.relationships:
             await ctx.send("❌ Отношения еще не определены! Используйте `!бросок`")
             return
 
         characters = sorted(self.system.characters.keys())
 
-        # Создаем таблицу (примечание: длинные имена могут обрезаться)
+        # Создаем таблицу: строки = from, столбцы = to
         table = "```\n"
         table += " " * 15
         for char in characters:
             table += f"{char[:8]:>8} "
         table += "\n" + "-" * (15 + 9 * len(characters)) + "\n"
 
-        for char1 in characters:
+        for char1 in characters:  # From
             table += f"{char1[:14]:<14} "
-            for char2 in characters:
+            for char2 in characters:  # To
                 if char1 == char2:
                     table += "    —    "
                 else:
-                    rel_key = str(tuple(sorted([char1, char2])))
+                    rel_key = str((char1, char2))  # Directed from char1 to char2
                     if rel_key in self.system.relationships:
                         rel = self.system.relationships[rel_key]
                         table += f"    {rel['value']}    "
@@ -187,7 +204,9 @@ class RelationshipCog(commands.Cog):
         table += "```"
 
         embed = discord.Embed(
-            title="📊 Таблица отношений", description=table, color=0xFFD700
+            title="📊 Таблица отношений (направленная)",
+            description=table,
+            color=0xFFD700,
         )
 
         # Легенда
@@ -196,11 +215,12 @@ class RelationshipCog(commands.Cog):
             legend += f"{value}: {desc}\n"
 
         embed.add_field(name="🎯 Легенда", value=legend, inline=False)
+        embed.set_footer(text="Строки: отношение ОТ персонажа, Столбцы: К персонажу")
         await ctx.send(embed=embed)
 
     @commands.command(name="отношения")
     async def show_detailed_relationships(self, ctx, *, character_name: str = None):
-        """Показать подробные отношения"""
+        """Показать подробные отношения (только исходящие для конкретного персонажа)"""
         if not self.system.relationships:
             await ctx.send("❌ Отношения еще не определены!")
             return
@@ -211,3 +231,83 @@ class RelationshipCog(commands.Cog):
             character_name = character_name.strip()
             if character_name not in self.system.characters:
                 await ctx.send(f"❌ Персонаж `{character_name}` не найден!")
+                return
+
+            # Только исходящие отношения от character_name к другим
+            relationships = []
+            other_chars = [c for c in self.system.characters if c != character_name]
+            for other_char in other_chars:
+                rel_key = str((character_name, other_char))  # Directed: from → to
+                if rel_key in self.system.relationships:
+                    rel_data = self.system.relationships[rel_key]
+                    relationships.append((other_char, rel_data))
+                else:
+                    relationships.append((other_char, None))  # No relation yet
+
+            if not any(rel[1] for rel in relationships):
+                embed.description = f"У {character_name} пока нет отношений."
+            else:
+                desc = f"Отношения **{character_name}** → другим:\n\n"
+                for other_char, rel_data in sorted(
+                    relationships,
+                    key=lambda x: (x[1]["value"] if x[1] else 0) if x[1] else (0, x[0]),
+                    reverse=True,
+                ):
+                    if rel_data:
+                        desc += f"**{character_name} → {other_char}**: {rel_data['value']} - {rel_data['description']}\n"
+                    else:
+                        desc += f"**{character_name} → {other_char}**: Нет отношения\n"
+                embed.description = desc
+        else:
+            # Все направленные отношения (from → to)
+            desc = "Все отношения (от → к):\n\n"
+            all_rels = []
+            for rel_key, rel_data in self.system.relationships.items():
+                try:
+                    chars = ast.literal_eval(rel_key)
+                    all_rels.append((chars[0], chars[1], rel_data))
+                except (ValueError, SyntaxError):
+                    continue
+            for from_char, to_char, rel_data in sorted(
+                all_rels, key=lambda x: x[2]["value"], reverse=True
+            ):
+                desc += f"**{from_char} → {to_char}**: {rel_data['value']} - {rel_data['description']}\n"
+            embed.description = desc
+
+        await ctx.send(embed=embed)
+
+    @commands.command(name="перебросить")
+    async def reroll_relationship(self, ctx, char1: str, char2: str):
+        """Перебросить отношение от char1 к char2 (с логикой корректировки)"""
+        char1 = char1.strip()
+        char2 = char2.strip()
+        if not char1 or not char2:
+            await ctx.send("❌ Имена персонажей не могут быть пустыми!")
+            return
+        if char1 == char2:
+            await ctx.send("❌ Нельзя перебросить отношение к себе!")
+            return
+
+        rel_key = str((char1, char2))  # Directed: from char1 to char2
+
+        if rel_key not in self.system.relationships:
+            await ctx.send(
+                f"❌ Отношение от `{char1}` к `{char2}` не найдено! Используйте `!бросок` сначала."
+            )
+            return
+
+        old_data = self.system.relationships[rel_key]
+        old_value = old_data["value"]
+
+        new_roll = random.randint(1, 10)
+        # Логика корректировки
+        if new_roll > old_value:
+            final_value = min(10, old_value + 1)  # Увеличиваем на 1, макс 10
+        elif new_roll == 1:
+            final_value = max(1, old_value - 1)  # Уменьшаем на 1, мин 1
+
+
+# Async setup function (required for Discord.py 2.x cog extensions)
+async def setup(bot):
+    await bot.add_cog(RelationshipCog(bot))
+    print("✅ RelationshipCog добавлен через async setup!")
