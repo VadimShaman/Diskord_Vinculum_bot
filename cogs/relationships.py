@@ -1,3 +1,4 @@
+import traceback
 import discord
 from discord.ext import commands
 import json
@@ -9,6 +10,7 @@ from typing import Dict, List
 # Debug: Test import before using
 try:
     from Relationship_System import RelationshipSystem
+
     print("✅ Импорт RelationshipSystem успешен!")  # This will print on load
 except ImportError as e:
     print(f"❌ Ошибка импорта RelationshipSystem: {e}")
@@ -20,12 +22,14 @@ class RelationshipCog(commands.Cog):
         self.bot = bot
         try:
             self.system = RelationshipSystem()
-            print(f"✅ RelationshipCog инициализирован для {bot.user}!")  # Confirm init success
+            print(
+                f"✅ RelationshipCog инициализирован для {bot.user}!"
+            )  # Confirm init success
         except Exception as e:
             print(f"❌ Ошибка инициализации RelationshipCog: {e}")
             traceback.print_exc()  # Full error if system fails
             raise  # Re-raise to prevent partial load
-        
+
         self.relationship_descriptions = {
             1: "🔴 Вражда",
             2: "🔴 Конфликт",
@@ -38,9 +42,11 @@ class RelationshipCog(commands.Cog):
             9: "💖 Любовь",
             10: "💖 Душа",
         }
-        
+
         # Debug: List commands after init
-        print("📝 Команды в RelationshipCog:", [cmd.name for cmd in self.get_commands()])
+        print(
+            "📝 Команды в RelationshipCog:", [cmd.name for cmd in self.get_commands()]
+        )
 
     @commands.command(name="добавить")
     async def add_character(self, ctx, *, name: str):
@@ -80,7 +86,9 @@ class RelationshipCog(commands.Cog):
         del self.system.characters[name]
         # Удаляем все отношения с этим персонажем (безопасный парсинг ключей)
         to_remove = []
-        for rel_key in list(self.system.relationships):  # Use list() to avoid runtime modification
+        for rel_key in list(
+            self.system.relationships
+        ):  # Use list() to avoid runtime modification
             try:
                 chars = ast.literal_eval(rel_key)
                 if name in chars:
@@ -105,7 +113,7 @@ class RelationshipCog(commands.Cog):
         embed = discord.Embed(
             title="👥 Список персонажей",
             description=f"Всего персонажей: {len(characters)}\n\n"
-                        + "\n".join([f"• {char}" for char in sorted(characters)]),
+            + "\n".join([f"• {char}" for char in sorted(characters)]),
             color=0x9370DB,
         )
         await ctx.send(embed=embed)
@@ -202,4 +210,4 @@ class RelationshipCog(commands.Cog):
         if character_name:
             character_name = character_name.strip()
             if character_name not in self.system.characters:
-                await ctx.send(f"❌ Персонаж `{character_name}` не найден
+                await ctx.send(f"❌ Персонаж `{character_name}` не найден!")
