@@ -3,8 +3,8 @@ from discord.ext import commands
 from datetime import datetime
 from dotenv import load_dotenv, find_dotenv
 import os
-from Cog.py import *
-from Relationship_System.py import *
+from Cog import *
+from Relationship_System import *
 
 
 class RelationshipCog(commands.Cog):
