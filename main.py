@@ -3,6 +3,7 @@ import sys  # For UTF-8 console reconfiguration
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
+import traceback  # Added for detailed error traces
 from cogs import *
 
 # Force UTF-8 encoding for console output (fixes UnicodeEncodeError on Windows)
@@ -24,8 +25,10 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-# Создание бота
-bot = commands.Bot(command_prefix=["!", "?", "/"], intents=intents)
+# Создание бота (добавлен case_insensitive=True для нечувствительности к регистру)
+bot = commands.Bot(
+    command_prefix=["!", "?", "/"], intents=intents, case_insensitive=True
+)
 
 
 @bot.event
@@ -34,15 +37,22 @@ async def on_ready():
     print(f"✅ Бот {bot.user} запущен!")
     print(f"📊 Бот работает на {len(bot.guilds)} серверах")
 
+    # Debug: Выводим список всех команд для проверки загрузки
+    print("📋 Загруженные команды:", [cmd.name for cmd in bot.commands])
+
     # Загружаем коги (теперь синхронно)
     try:
         load_cogs()  # No await needed
         print("✅ Все коги загружены!")
+
+        # New Debug: Check if cog is actually added
+        print("🔍 Загруженные коги:", list(bot.cogs.keys()))
     except Exception as e:
         print(f"❌ Ошибка загрузки когов: {e}")
+        traceback.print_exc()  # Full traceback for debugging
 
 
-def load_cogs():  # Changed to synchronous function
+def load_cogs():  # Synchronous function
     """Загрузка всех когов"""
     cogs = ["cogs.relationships"]
 
@@ -52,6 +62,31 @@ def load_cogs():  # Changed to synchronous function
             print(f"✅ Загружен ког: {cog}")
         except Exception as e:
             print(f"❌ Ошибка загрузки {cog}: {e}")
+            traceback.print_exc()  # Full traceback, e.g., import errors
+
+
+@bot.event
+async def on_command_error(ctx, error):
+    """Обработчик ошибок команд"""
+    # Игнорируем ошибки в DM или от ботов
+    if not ctx.guild or ctx.author.bot:
+        return
+
+    if isinstance(error, commands.CommandNotFound):
+        # Если команда не найдена, напоминаем о префиксе
+        embed = discord.Embed(
+            title="❓ Команда не найдена",
+            description=f"Команда `{ctx.invoked_with}` не распознана. Используйте префикс `!`, `?` или `/` перед названием команды.\n\nНапример: `!добавить ИмяПерсонажа`\nДля списка команд: `!помощь`",
+            color=0xFF0000,
+        )
+        await ctx.send(embed=embed, delete_after=10)  # Автоудаление через 10 сек
+
+        # New Debug: Log full error to console
+        print(f"⚠️ CommandNotFound для '{ctx.invoked_with}' от {ctx.author}: {error}")
+        traceback.print_exc()
+    else:
+        # Для других ошибок (например, недостаточно аргументов) - стандартное поведение
+        await bot.on_command_error(ctx, error)  # Передаем дальше
 
 
 @bot.command()
@@ -59,7 +94,7 @@ async def помощь(ctx):
     """Справка по командам"""
     embed = discord.Embed(
         title="📖 Помощь по системе отношений",
-        description="Основные команды:",
+        description="**Важно:** Все команды начинаются с префикса `!`, `?` или `/`.\n\nОсновные команды:",
         color=0x00FF00,
     )
 
@@ -69,12 +104,18 @@ async def помощь(ctx):
         "!персонажи": "Список персонажей",
         "!бросок": "Определить отношения",
         "!таблица": "Таблица отношений",
-        "!отношения [имя]": "Детальные отношения",
+        "!отношения [имя]": "Детальные отношения (опционально)",
         "!перебросить [имя1] [имя2]": "Перебросить отношение",
     }
 
     for cmd, desc in commands_list.items():
         embed.add_field(name=cmd, value=desc, inline=False)
+
+    embed.add_field(
+        name="💡 Подсказка",
+        value="Имена могут содержать пробелы (например, `!добавить Alice Bob`). Команды нечувствительны к регистру.",
+        inline=False,
+    )
 
     await ctx.send(embed=embed)
 
