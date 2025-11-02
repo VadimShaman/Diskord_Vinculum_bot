@@ -4,6 +4,14 @@ from RelationshipCalculator import RelationshipCalculator
 
 
 class RelationshipSystem:
+    def get_vinculum_descriptions(self):
+        """Получить описания винкулумов"""
+        return self.calculator.get_all_descriptions()
+
+    def get_vinculum_effects(self):
+        """Получить эффекты винкулумов""" 
+        return self.calculator.get_all_effects()
+
     def __init__(self):
         self.character_manager = CharacterManager()
         self.relationship_manager = RelationshipManager()
