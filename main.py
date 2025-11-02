@@ -5,6 +5,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import traceback  # For detailed error traces
 
+"""
 # Force UTF-8 encoding for console output (fixes UnicodeEncodeError on Windows)
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -15,6 +16,7 @@ except AttributeError:
 
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
+"""
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -25,9 +27,7 @@ intents.message_content = True
 intents.members = True
 
 # Создание бота (добавлен case_insensitive=True для нечувствительности к регистру)
-bot = commands.Bot(
-    command_prefix=["!", "?", "/"], intents=intents, case_insensitive=True
-)
+bot = commands.Bot(command_prefix=["/"], intents=intents, case_insensitive=True)
 
 
 @bot.event
@@ -141,7 +141,7 @@ async def помощь(ctx):
 async def перезагрузить(ctx):
     """Перезагрузить коги (только для владельца)"""
     # Замените YOUR_OWNER_ID на ваш реальный Discord user ID (число, например, 1234567890)
-    YOUR_OWNER_ID = 1234567890  # <-- ВСТАВЬТЕ СЮДА СВОЙ ID
+    YOUR_OWNER_ID = 1  # <-- ВСТАВЬТЕ СЮДА СВОЙ ID
     if ctx.author.id != YOUR_OWNER_ID:
         return await ctx.send("❌ Недостаточно прав!")
 
