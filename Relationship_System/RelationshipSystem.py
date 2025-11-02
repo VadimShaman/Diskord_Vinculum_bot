@@ -9,6 +9,10 @@ class RelationshipSystem:
         self.relationship_manager = RelationshipManager()
         self.calculator = RelationshipCalculator()
         
+    def relationship_exists(self, from_char: str, to_char: str) -> bool:
+        """Проверить существование отношения"""
+        return self.relationship_manager.relationship_exists(from_char, to_char)   
+    
     # Делегирование методов для персонажей
     def add_character(self, name: str, added_by: int, added_date: str) -> bool:
         return self.character_manager.add_character(name, added_by, added_date)

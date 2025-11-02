@@ -4,13 +4,14 @@ import random
 import ast
 import traceback
 
+try:
+    from RelationshipSystem import RelationshipSystem
+    print("✅ Импорт RelationshipSystem успешен!")
+except ImportError as e:
+    print(f"❌ Ошибка импорта: {e}")
+    traceback.print_exc()
+
 class RelationshipCog(commands.Cog):
-    try:
-        from RelationshipSystem import RelationshipSystem
-        print("✅ Импорт RelationshipSystem успешен!")
-    except ImportError as e:
-        print(f"❌ Ошибка импорта: {e}")
-    
     def __init__(self, bot):
         self.bot = bot
         self.system = RelationshipSystem()
@@ -22,15 +23,15 @@ class RelationshipCog(commands.Cog):
     @commands.command(name="бросок")
     async def roll_vinculums(self, ctx):
         """Бросить кубы для определения винкулумов"""
-        if self.system.character_manager.get_character_count() < 2:
+        if len(self.system.characters) < 2:  # ✅ Использовать property
             await ctx.send("❌ Нужно как минимум 2 персонажа!")
             return
-        
+    
         vinculums_created = self.system.roll_all_vinculums(
             ctx.author.id,
             ctx.message.created_at.isoformat()
         )
-        
+    
         embed = discord.Embed(
             title="🎲 Винкулумы определены!",
             description=f"Создано {vinculums_created} направленных винкулумов.",
@@ -41,12 +42,11 @@ class RelationshipCog(commands.Cog):
     @commands.command(name="таблица")
     async def show_vinculum_table(self, ctx):
         """Показать таблицу винкулумов"""
-        if not self.system.relationship_manager.get_relationship_count():
-            await ctx.send("❌ Винкулумы еще не определены! Используйте `!бросок`")
+        if not self.system.relationships:  # ✅ Использовать property
+            await ctx.send("❌ Винкулумы еще не определены! Используйте `/бросок`")
             return
 
-        characters = sorted(self.system.character_manager.list_characters())
-        
+        characters = sorted(self.system.characters.keys())  # ✅ Использовать property
         # Создаем таблицу
         table = "```\n"
         table += " " * 15
@@ -179,3 +179,108 @@ class RelationshipCog(commands.Cog):
         )
 
         await ctx.send(embed=embed)
+
+    @commands.command(name="добавить")
+    async def add_character(self, ctx, *, name: str):
+        """Добавить нового персонажа"""
+        name = name.strip()
+        if not name:
+            await ctx.send("❌ Имя не может быть пустым!")
+            return
+        
+        if name in self.system.characters:
+            await ctx.send(f"❌ Персонаж `{name}` уже существует!")
+            return
+    
+        self.system.characters[name] = {
+            "added_by": ctx.author.id,
+            "added_date": ctx.message.created_at.isoformat(),
+        }
+        self.system.save_data()
+
+        embed = discord.Embed(
+            title="✅ Персонаж добавлен",
+            description=f"Персонаж `{name}` успешно добавлен!",
+            color=0x00FF00,
+        )
+        await ctx.send(embed=embed)
+
+    @commands.command(name="удалить")
+    async def remove_character(self, ctx, *, name: str):
+        """Удалить персонажа"""
+        name = name.strip()
+        if not name:
+            await ctx.send("❌ Имя не может быть пустым!")
+            return
+        if name not in self.system.characters:
+            await ctx.send(f"❌ Персонаж `{name}` не найден!")
+            return
+
+        # Используем метод системы для правильного удаления
+        success = self.system.remove_character(name)
+        if success:
+            await ctx.send(f"✅ Персонаж `{name}` и все его винкулумы удалены!")
+        else:
+            await ctx.send("❌ Ошибка при удалении персонажа!")
+
+    @commands.command(name="персонажи") 
+    async def list_characters(self, ctx):
+        """Показать список всех персонажей"""
+        if not self.system.characters:
+            await ctx.send("❌ Пока нет добавленных персонажей!")
+            return
+
+        characters = list(self.system.characters.keys())
+        embed = discord.Embed(
+            title="👥 Список персонажей",
+            description=f"Всего персонажей: {len(characters)}\n\n" +
+            "\n".join([f"• {char}" for char in sorted(characters)]),
+            color=0x9370DB,
+        )
+        await ctx.send(embed=embed)
+
+    @commands.command(name="перебросить")
+    async def reroll_vinculum(self, ctx, char1: str, char2: str):
+        """Перебросить винкулум между двумя персонажами"""
+        char1 = char1.strip()
+        char2 = char2.strip()
+        if not char1 or not char2:
+            await ctx.send("❌ Имена персонажей не могут быть пустыми!")
+            return
+        if char1 == char2:
+            await ctx.send("❌ Нельзя перебросить винкулум к себе!")
+            return
+
+        vinculum = self.system.get_relationship(char1, char2)
+        if not vinculum:
+            await ctx.send(f"❌ Винкулум от `{char1}` к `{char2}` не найден!")
+            return
+
+        old_value = vinculum['value']
+        new_value, new_description, new_effect = self.system.calculator.reroll_vinculum(old_value)
+    
+        # Обновляем винкулум через менеджер
+        self.system.relationship_manager.update_relationship(
+            char1, char2, new_value, new_description
+        )
+        # Обновляем эффект отдельно
+        rel_key = str((char1, char2))
+        if rel_key in self.system.relationships:
+            self.system.relationships[rel_key]['effect'] = new_effect
+        self.system.save_data()
+
+        embed = discord.Embed(
+            title="🔄 Винкулум переброшен!",
+            description=f"**{char1} → {char2}**\nБыло: {old_value} | Стало: {new_value}",
+            color=0xFFA500,
+        )
+        embed.add_field(
+            name=f"Уровень {new_value}: {new_description}",
+            value=new_effect,
+            inline=False
+        )   
+        await ctx.send(embed=embed)
+
+    async def setup(bot):
+        await bot.add_cog(RelationshipCog(bot))
+        print("✅ RelationshipCog добавлен!")
