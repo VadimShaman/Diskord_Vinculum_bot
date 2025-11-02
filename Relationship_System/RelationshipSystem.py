@@ -1,6 +1,6 @@
-from CharacterManager import CharacterManager
-from RelationshipManager import RelationshipManager
-from RelationshipCalculator import RelationshipCalculator
+from .CharacterManager import CharacterManager
+from .RelationshipManager import RelationshipManager
+from .RelationshipCalculator import RelationshipCalculator
 
 
 class RelationshipSystem:

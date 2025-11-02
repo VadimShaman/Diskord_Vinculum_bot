@@ -5,26 +5,12 @@ import ast
 import traceback
 import sys
 import os
-
+from Relationship_System.CharacterManager import CharacterManager
+from Relationship_System.RelationshipManager import RelationshipManager  
+from Relationship_System.RelationshipCalculator import RelationshipCalculator
+from Relationship_System.RelationshipSystem import RelationshipSystem
 # Добавляем корневую директорию в путь Python
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-
-# Импорт должен быть ВНЕ класса
-try:
-    from RelationshipSystem import RelationshipSystem
-    print("[SUCCESS] Импорт RelationshipSystem успешен!")
-except ImportError as e:
-    print(f"[ERROR] Ошибка импорта RelationshipSystem: {e}")
-    # Fallback: попробуем импортировать компоненты по отдельности
-    try:
-        from CharacterManager import CharacterManager
-        from RelationshipManager import RelationshipManager  
-        from RelationshipCalculator import RelationshipCalculator
-        print("[SUCCESS] Импорт компонентов успешен!")
-    except ImportError as e2:
-        print(f"[ERROR] Импорт компонентов тоже провалился: {e2}")
-        traceback.print_exc()
-        raise
 
 class RelationshipCog(commands.Cog):
     def __init__(self, bot):
