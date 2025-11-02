@@ -8,7 +8,7 @@ class RelationshipSystem:
         self.character_manager = CharacterManager()
         self.relationship_manager = RelationshipManager()
         self.calculator = RelationshipCalculator()
-
+        
     # Делегирование методов для персонажей
     def add_character(self, name: str, added_by: int, added_date: str) -> bool:
         return self.character_manager.add_character(name, added_by, added_date)
@@ -87,3 +87,35 @@ class RelationshipSystem:
     @property
     def relationships(self):
         return self.relationship_manager.relationships
+    def create_vinculum(self, from_char: str, to_char: str, value: int, 
+                       description: str, effect: str, rolled_by: int, roll_date: str) -> None:
+        self.relationship_manager.create_vinculum(
+            from_char, to_char, value, description, effect, rolled_by, roll_date
+        )
+
+    def roll_all_vinculums(self, rolled_by: int, roll_date: str) -> int:
+        """Создать винкулумы между всеми персонажами"""
+        characters = self.character_manager.list_characters()
+        vinculums_created = 0
+
+        for from_char in characters:
+            for to_char in characters:
+                if from_char == to_char:
+                    continue
+            
+                if not self.relationship_manager.relationship_exists(from_char, to_char):
+                    value, description, effect = self.calculator.roll_vinculum()
+                    self.create_vinculum(
+                        from_char, to_char, value, description, effect, rolled_by, roll_date
+                    )
+                    vinculums_created += 1
+
+        return vinculums_created
+    
+    def get_incoming_relationships(self, character_name: str):
+        """Получить все входящие отношения персонажа"""
+        return self.relationship_manager.get_incoming_relationships(character_name)
+
+    def get_relationship_count(self) -> int:
+        """Получить количество отношений"""
+        return self.relationship_manager.get_relationship_count()

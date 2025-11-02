@@ -126,3 +126,17 @@ class RelationshipManager:
     def get_relationship_count(self) -> int:
         """Получить количество отношений"""
         return len(self.relationships)
+    
+    def create_vinculum(self, from_char: str, to_char: str, value: int, 
+                       description: str, effect: str, rolled_by: int, roll_date: str) -> None:
+        """Создать направленный винкулум"""
+        rel_key = self._create_key(from_char, to_char)
+        self.relationships[rel_key] = {
+            "value": value,
+            "description": description,
+            "effect": effect,  # Добавляем эффект
+            "rolled_by": rolled_by,
+            "roll_date": roll_date,
+            "type": "vinculum"  # Добавляем тип связи
+        }
+        self.save_data()
