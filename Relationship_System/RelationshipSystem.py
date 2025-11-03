@@ -1,6 +1,43 @@
-from Relationship_System.CharacterManager import CharacterManager
-from Relationship_System.RelationshipManager import RelationshipManager
-from Relationship_System.RelationshipCalculator import RelationshipCalculator
+import sys
+import os
+
+# Добавляем путь для импортов
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
+
+try:
+    from CharacterManager import CharacterManager
+    from RelationshipManager import RelationshipManager
+    from RelationshipCalculator import RelationshipCalculator
+except ImportError as e:
+    print(f"[ERROR] Импорт модулей не удался: {e}")
+    # Заглушки для тестирования
+    class CharacterManager:
+        def __init__(self): self.characters = {}
+        def add_character(self, *args): return False
+        def remove_character(self, *args): return False
+        def character_exists(self, *args): return False
+        def list_characters(self): return []
+    
+    class RelationshipManager:
+        def __init__(self): self.relationships = {}
+        def relationship_exists(self, *args): return False
+        def create_vinculum(self, *args): pass
+        def get_relationship(self, *args): return None
+        def get_outgoing_relationships(self, *args): return []
+        def get_incoming_relationships(self, *args): return []
+        def get_all_relationships(self): return []
+        def remove_all_character_relationships(self, *args): return []
+    
+    class RelationshipCalculator:
+        def __init__(self): pass
+        def roll_vinculum(self): return (1, "Тест", "Тест")
+        def reroll_vinculum(self, x): return (x, "Тест", "Тест")
+        def get_description(self, x): return "Тест"
+        def get_effect(self, x): return "Тест"
+        def get_all_descriptions(self): return {}
+        def get_all_effects(self): return {}
 
 class RelationshipSystem:
     def __init__(self):
@@ -14,7 +51,6 @@ class RelationshipSystem:
     def get_vinculum_effects(self):
         return self.calculator.get_all_effects()
     
-    # Остальные методы без изменений...
     def relationship_exists(self, from_char: str, to_char: str) -> bool:
         return self.relationship_manager.relationship_exists(from_char, to_char)
     
@@ -92,7 +128,6 @@ class RelationshipSystem:
     def get_relationship_count(self) -> int:
         return self.relationship_manager.get_relationship_count()
 
-    # НОВАЯ ФУНКЦИЯ: Бросок винкулума между двумя конкретными персонажами
     def roll_single_vinculum(self, from_char: str, to_char: str, rolled_by: int, roll_date: str) -> tuple:
         """Создать винкулум между двумя конкретными персонажами"""
         if from_char == to_char:
@@ -112,7 +147,6 @@ class RelationshipSystem:
         
         return (value, description, effect), "✅ Винкулум создан!"
 
-    # НОВАЯ ФУНКЦИЯ: Установить конкретное значение винкулума
     def set_vinculum_value(self, from_char: str, to_char: str, value: int, set_by: int, set_date: str) -> tuple:
         """Установить конкретное значение винкулума между двумя персонажами"""
         if from_char == to_char:

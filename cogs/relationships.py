@@ -5,12 +5,55 @@ import random
 import traceback
 import sys
 import os
-from Relationship_System.CharacterManager import CharacterManager
-from Relationship_System.RelationshipManager import RelationshipManager  
-from Relationship_System.RelationshipCalculator import RelationshipCalculator
-from Relationship_System.RelationshipSystem import RelationshipSystem
 
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+# Правильное добавление пути для импортов
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+try:
+    from Relationship_System.RelationshipSystem import RelationshipSystem
+    print("[SUCCESS] RelationshipSystem импортирован!")
+except ImportError as e:
+    print(f"[ERROR] Ошибка импорта RelationshipSystem: {e}")
+    traceback.print_exc()
+    # Создаем заглушку для тестирования
+    class RelationshipSystem:
+        def __init__(self):
+            self.calculator = type('Calculator', (), {
+                'get_all_descriptions': lambda: {},
+                'get_all_effects': lambda: {},
+                'roll_vinculum': lambda: (1, "Тест", "Тест эффект"),
+                'reroll_vinculum': lambda x: (x, "Тест", "Тест эффект"),
+                'get_description': lambda x: "Тест",
+                'get_effect': lambda x: "Тест эффект"
+            })()
+            self.character_manager = type('CharManager', (), {
+                'list_characters': lambda: [],
+                'character_exists': lambda x: False,
+                'add_character': lambda x, y, z: False,
+                'remove_character': lambda x: False
+            })()
+            self.relationship_manager = type('RelManager', (), {
+                'get_relationship': lambda x, y: None,
+                'get_outgoing_relationships': lambda x: [],
+                'get_incoming_relationships': lambda x: [],
+                'get_all_relationships': lambda: []
+            })()
+
+        def character_exists(self, name): return False
+        def add_character(self, name, user_id, date): return False
+        def remove_character(self, name): return False
+        def list_characters(self): return []
+        def get_relationship(self, from_char, to_char): return None
+        def get_outgoing_relationships(self, char): return []
+        def get_incoming_relationships(self, char): return []
+        def get_all_relationships(self): return []
+        def roll_all_vinculums(self, user_id, date): return 0
+        def create_vinculum(self, from_char, to_char, value, desc, effect, user_id, date): pass
+        def roll_single_vinculum(self, from_char, to_char, user_id, date): return None, "Ошибка"
+        def set_vinculum_value(self, from_char, to_char, value, user_id, date): return None, "Ошибка"
 
 class Relationships(commands.Cog):
     def __init__(self, bot):
@@ -109,7 +152,6 @@ class Relationships(commands.Cog):
             traceback.print_exc()
             await interaction.response.send_message("❌ Произошла ошибка при создании винкулумов!")
 
-    # НОВАЯ КОМАНДА: Бросок винкулума между двумя персонажами
     @app_commands.command(name="бросок_винкулума", description="Определить винкулум между двумя конкретными персонажами")
     @app_commands.describe(персонаж1="Первый персонаж", персонаж2="Второй персонаж")
     async def бросок_винкулума(self, interaction: discord.Interaction, персонаж1: str, персонаж2: str):
@@ -145,7 +187,6 @@ class Relationships(commands.Cog):
             traceback.print_exc()
             await interaction.response.send_message("❌ Произошла ошибка при создании винкулума!")
 
-    # НОВАЯ КОМАНДА: Установить значение винкулума
     @app_commands.command(name="установить_винкулум", description="Установить конкретное значение винкулума между двумя персонажами")
     @app_commands.describe(
         персонаж1="Первый персонаж", 
@@ -278,7 +319,11 @@ class Relationships(commands.Cog):
             current_value = current_rel.get('value', 1)
             new_value, new_desc, new_effect = self.system.calculator.reroll_vinculum(current_value)
             
-            self.system.relationship_manager.update_relationship(char1, char2, new_value, new_desc)
+            # Исправленный вызов - используем create_vinculum
+            self.system.create_vinculum(
+                char1, char2, new_value, new_desc, new_effect, 
+                interaction.user.id, interaction.created_at.isoformat()
+            )
             
             embed = discord.Embed(
                 title="🎲 Винкулум переброшен!",
