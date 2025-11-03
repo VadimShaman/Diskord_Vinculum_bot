@@ -3,99 +3,89 @@ import sys
 sys.path.append(os.path.dirname(__file__))
 import discord
 from discord.ext import commands
-from dotenv import load_dotenv
+from discord import app_commands
 import traceback
 
 # Загрузка переменных окружения
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ModuleNotFoundError:
+    pass
+
+token = os.getenv("DISCORD_TOKEN")
+
+if not token:
+    print("❌ [ERROR] Токен не найден! Добавь DISCORD_TOKEN в Secrets Replit или .env")
+    raise SystemExit
 
 # Настройка intents
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-# Создание бота (добавлен case_insensitive=True для нечувствительности к регистру)
-bot = commands.Bot(command_prefix=["/"], intents=intents, case_insensitive=True)
+# Используем commands.Bot для discord.py
+bot = commands.Bot(command_prefix="/", intents=intents, help_command=None)
 
+# Глобальная переменная для tree
+tree = None
 
 @bot.event
 async def on_ready():
+    global tree
+    tree = bot.tree
+    
     await bot.change_presence(activity=discord.Game(name="/помощь"))
     print(f"[SUCCESS] Бот {bot.user} запущен!")
     print(f"[INFO] Бот работает на {len(bot.guilds)} серверах")
 
-    # Debug: Выводим список всех команд для проверки загрузки (до загрузки когов)
-    print("[DEBUG] Загруженные команды (до когов):", [cmd.name for cmd in bot.commands])
-
-    # Загружаем коги (теперь асинхронно)
+    # Загружаем коги
     try:
         await load_cogs()
         print("[SUCCESS] Все коги загружены!")
 
-        # Enhanced Debug: Check if cog is actually added
+        # Debug информация
         print("[DEBUG] Загруженные коги:", list(bot.cogs.keys()))
-        print("[DEBUG] Полный список команд (после когов):", [cmd.name for cmd in bot.commands])
-        if not bot.cogs:
-            print("[WARNING] ВНИМАНИЕ: Ни один ког не загружен! Проверьте ошибки выше.")
+        
+        # Для discord.py команды находятся в bot.tree
+        synced = await tree.sync()
+        print(f"[SUCCESS] Синхронизировано {len(synced)} команд")
+        
     except Exception as e:
         print(f"[ERROR] Ошибка загрузки когов: {e}")
         traceback.print_exc()
 
 
-async def load_cogs():  # Async function for Discord.py 2.x
+async def load_cogs():
     """Загрузка всех когов (асинхронно)"""
     cogs = ["cogs.relationships"]
 
     for cog_name in cogs:
         try:
             print(f"[LOADING] Загружаем ког: {cog_name}")
-            await bot.load_extension(cog_name)  # Await the async method
+            await bot.load_extension(cog_name)
             print(f"[SUCCESS] Загружен ког: {cog_name}")
-        except discord.ext.commands.ExtensionNotFound:
+        except commands.ExtensionNotFound:
             print(f"[ERROR] Ког {cog_name} не найден (проверьте путь/файл)")
-        except discord.ext.commands.ExtensionAlreadyLoaded:
+        except commands.ExtensionAlreadyLoaded:
             print(f"[WARNING] Ког {cog_name} уже загружен")
-        except discord.ext.commands.NoEntryPointError:
+        except commands.NoEntryPointError:
             print(f"[ERROR] Ког {cog_name} не имеет функции setup!")
-        except discord.ext.commands.ExtensionFailed as e:
+        except commands.ExtensionFailed as e:
             print(f"[ERROR] Загрузка {cog_name} провалилась (setup error): {e}")
             print("[TIP] Проверьте async def setup(bot) и await bot.add_cog в cogs/relationships.py")
-            traceback.print_exc()  # Full traceback
+            traceback.print_exc()
         except Exception as e:
             print(f"[ERROR] Неожиданная ошибка загрузки {cog_name}: {e}")
-            traceback.print_exc()  # Full traceback, e.g., import errors
+            traceback.print_exc()
 
 
-@bot.event
-async def on_command_error(ctx, error):
-    """Обработчик ошибок команд"""
-    # Игнорируем ошибки в DM или от ботов
-    if not ctx.guild or ctx.author.bot:
-        return
-
-    if isinstance(error, commands.CommandNotFound):
-        # Если команда не найдена, напоминаем о префиксе
-        embed = discord.Embed(
-            title="[ERROR] Команда не найдена",
-            description=f"Команда `{ctx.invoked_with}` не распознана. Используйте префикс `/` перед названием команды.\n\nНапример: `/добавить ИмяПерсонажа`\nДля списка команд: `/помощь`",
-            color=0xFF0000,
-        )
-        await ctx.send(embed=embed, delete_after=10)  # Автоудаление через 10 сек
-
-        # Debug: Log full error to console
-        print(f"[WARNING] CommandNotFound для '{ctx.invoked_with}' от {ctx.author}: {error}")
-        traceback.print_exc()
-    else:
-        # Для других ошибок (например, недостаточно аргументов) - стандартное поведение
-        await bot.on_command_error(ctx, error)  # Передаем дальше
-
-
-@bot.command()
-async def помощь(ctx):
+@bot.tree.command(name="помощь", description="Справка по командам системы Винкулумов")
+async def помощь(interaction: discord.Interaction):
     """Справка по командам"""
     embed = discord.Embed(
         title="[HELP] Помощь по системе Винкулумов",
-        description="**Важно:** Все команды начинаются с префикса `/`.\n\nОсновные команды:",
+        description="**Все команды начинаются с `/` и всплывают автоматически**\n\nОсновные команды:",
         color=0x00FF00,
     )
 
@@ -105,60 +95,79 @@ async def помощь(ctx):
         "/персонажи": "Список персонажей",
         "/бросок": "Определить винкулумы",
         "/таблица": "Таблица винкулумов",
-        "/винкулум [имя]": "Винкулумы персонажа",
-        "/винкулум [имя1] [имя2]": "Конкретный винкулум",
-        "/перебросить [имя1] [имя2]": "Перебросить винкулум",
+        "/винкулум": "Винкулумы персонажей",
+        "/перебросить": "Перебросить винкулум",
+        "/синхронизировать": "Синхронизация команд (владелец)",
     }
 
     for cmd, desc in commands_list.items():
         embed.add_field(name=cmd, value=desc, inline=False)
 
     embed.add_field(
-        name="[TIP] Подсказка",
-        value="Имена могут содержать пробелы (например, `/добавить Alice Bob`). Команды нечувствительны к регистру.",
+        name="💡 Подсказка",
+        value="Просто начните вводить `/` и выберите нужную команду из списка! Параметры заполняются автоматически с подсказками.",
         inline=False,
     )
 
-    await ctx.send(embed=embed)
+    await interaction.response.send_message(embed=embed)
 
 
-@bot.command()
-async def перезагрузить(ctx):
-    """Перезагрузить коги (только для владельца)"""
-    # Замените YOUR_OWNER_ID на ваш реальный Discord user ID (число, например, 1234567890)
-    YOUR_OWNER_ID = 1  # <-- ВСТАВЬТЕ СЮДА СВОЙ ID
-    if ctx.author.id != YOUR_OWNER_ID:
-        return await ctx.send("[ERROR] Недостаточно прав!")
+@bot.tree.command(name="синхронизировать", description="Синхронизировать команды с Discord (только для владельца)")
+async def синхронизировать(interaction: discord.Interaction):
+    """Синхронизировать Slash-commands"""
+    # ЗАМЕНИТЕ НА ВАШ REAL DISCORD USER ID
+    YOUR_OWNER_ID = 1  # <-- ВАЖНО: ЗАМЕНИТЕ НА ВАШ ID!
+    
+    if interaction.user.id != YOUR_OWNER_ID:
+        return await interaction.response.send_message("❌ Недостаточно прав! Эта команда только для владельца бота.", ephemeral=True)
 
     try:
-        # Для перезагрузки: используем reload_extension (async в 2.x)
+        # Синхронизируем команды
+        synced = await bot.tree.sync()
+        await interaction.response.send_message(f"✅ Синхронизировано {len(synced)} команд с Discord!", ephemeral=True)
+        print(f"[SUCCESS] Синхронизировано {len(synced)} команд!")
+        
+        # Выводим список всех команд для отладки
+        commands_list = [cmd.name for cmd in synced]
+        print(f"[DEBUG] Доступные команды после синхронизации: {commands_list}")
+        
+    except Exception as e:
+        error_msg = f"❌ Ошибка синхронизации: {e}"
+        await interaction.response.send_message(error_msg, ephemeral=True)
+        print(f"[ERROR] Ошибка синхронизации: {e}")
+        traceback.print_exc()
+
+
+@bot.tree.command(name="перезагрузить", description="Перезагрузить коги (только для владельца)")
+async def перезагрузить(interaction: discord.Interaction):
+    """Перезагрузить коги"""
+    # ЗАМЕНИТЕ НА ВАШ REAL DISCORD USER ID
+    YOUR_OWNER_ID = 1  # <-- ВАЖНО: ЗАМЕНИТЕ НА ВАШ ID!
+    
+    if interaction.user.id != YOUR_OWNER_ID:
+        return await interaction.response.send_message("❌ Недостаточно прав! Эта команда только для владельца бота.", ephemeral=True)
+
+    try:
+        reloaded_cogs = []
         for cog in ["cogs.relationships"]:
             try:
-                await bot.reload_extension(cog)  # Await reload (unload + load)
+                await bot.reload_extension(cog)
+                reloaded_cogs.append(cog)
                 print(f"[RELOAD] Перезагружен ког: {cog}")
-            except discord.ext.commands.ExtensionFailed as e:
-                print(f"[ERROR] Перезагрузка {cog} провалилась (setup error): {e}")
-                await ctx.send(f"[WARNING] Ошибка перезагрузки {cog}: {e}")
             except Exception as e:
-                print(f"[WARNING] Ошибка перезагрузки {cog}: {e}")
-                # Fallback: unload then load
-                try:
-                    await bot.unload_extension(cog)
-                    await bot.load_extension(cog)
-                    print(f"[RELOAD] Перезагружен через unload/load: {cog}")
-                except Exception as fallback_e:
-                    print(f"[ERROR] Fallback failed for {cog}: {fallback_e}")
-                    await ctx.send(f"[ERROR] Fallback failed: {fallback_e}")
+                print(f"[ERROR] Ошибка перезагрузки {cog}: {e}")
 
-        await ctx.send("[SUCCESS] Коги перезагружены!")
+        if reloaded_cogs:
+            await interaction.response.send_message(f"✅ Коги перезагружены: {', '.join(reloaded_cogs)}", ephemeral=True)
+        else:
+            await interaction.response.send_message("❌ Не удалось перезагрузить коги", ephemeral=True)
+            
     except Exception as e:
-        await ctx.send(f"[ERROR] Ошибка: {e}")
+        await interaction.response.send_message(f"❌ Ошибка перезагрузки: {e}", ephemeral=True)
+        print(f"[ERROR] Ошибка перезагрузки когов: {e}")
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
-    token = os.getenv("DISCORD_TOKEN")
-    if token:
-        print(f"[INFO] Токен найден, запускаем бота...")
-        bot.run(token)
-    else:
-        print("[ERROR] Токен не найден! Проверьте .env файл")
+    print("[INFO] Токен найден, запускаем бота...")
+    bot.run(token)
