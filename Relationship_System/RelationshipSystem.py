@@ -1,15 +1,16 @@
 import sys
 import os
 
-# Добавляем путь для импортов
+# Правильное добавление пути для импортов
 current_dir = os.path.dirname(os.path.abspath(__file__))
-if current_dir not in sys.path:
-    sys.path.append(current_dir)
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
 
 try:
-    from CharacterManager import CharacterManager
-    from RelationshipManager import RelationshipManager
-    from RelationshipCalculator import RelationshipCalculator
+    from Relationship_System.CharacterManager import CharacterManager
+    from Relationship_System.RelationshipManager import RelationshipManager
+    from Relationship_System.RelationshipCalculator import RelationshipCalculator
 except ImportError as e:
     print(f"[ERROR] Импорт модулей не удался: {e}")
     # Заглушки для тестирования

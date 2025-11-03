@@ -39,15 +39,15 @@ async def on_ready():
 
         # Debug информация
         print("[DEBUG] Загруженные коги:", list(bot.cogs.keys()))
-        
+
         # Синхронизируем команды
         synced = await bot.tree.sync()
         print(f"[SUCCESS] Синхронизировано {len(synced)} команд")
-        
+
         # Выводим список всех команд для отладки
         commands_list = [cmd.name for cmd in synced]
         print(f"[DEBUG] Доступные команды: {commands_list}")
-        
+
     except Exception as e:
         print(f"[ERROR] Ошибка загрузки когов: {e}")
         traceback.print_exc()
@@ -106,48 +106,47 @@ async def диагностика(interaction: discord.Interaction):
     try:
         # Получаем информацию о загруженных когах
         loaded_cogs = list(bot.cogs.keys())
-        
+
         # Получаем синхронизированные команды
         synced_commands = await bot.tree.fetch_commands()
         command_names = [cmd.name for cmd in synced_commands]
-        
+
         # Информация о владельце
         app_info = await bot.application_info()
         current_owner_id = getattr(bot, 'owner_id', 'Не установлен')
-        
+
         embed = discord.Embed(
             title="🔧 Диагностика системы",
             color=0x9370DB
         )
-        
+
         embed.add_field(
             name="👑 Информация о владельце",
             value=f"**Ваш ID:** `{interaction.user.id}`\n"
-                  f"**Текущий OWNER_ID:** `{current_owner_id}`\n"
-                  f"**Владелец приложения:** `{app_info.owner.id}`",
+                  f"**Владелец настроен:** {'✅' if current_owner_id else '❌'}",
             inline=False
         )
-        
+
         embed.add_field(
             name="📊 Загруженные коги",
             value="\n".join(loaded_cogs) if loaded_cogs else "❌ Нет загруженных когов",
             inline=False
         )
-        
+
         embed.add_field(
             name="🎯 Доступные команды",
             value="\n".join([f"`/{cmd}`" for cmd in command_names]) if command_names else "❌ Нет команд",
             inline=False
         )
-        
+
         embed.add_field(
             name="🔄 Состояние",
             value=f"✅ Бот работает\n🖥️ Серверов: {len(bot.guilds)}\n📊 Задержка: {round(bot.latency * 1000)}ms",
             inline=False
         )
-        
+
         await interaction.response.send_message(embed=embed)
-        
+
     except Exception as e:
         await interaction.response.send_message(f"❌ Ошибка диагностики: {e}")
 
@@ -166,7 +165,7 @@ async def подробная_диагностика(interaction: discord.Interac
         # Синхронизированные команды
         synced_commands = await bot.tree.fetch_commands()
         global_commands = [cmd.name for cmd in synced_commands]
-        
+
         # Команды для текущей гильдии
         guild_commands = []
         if interaction.guild:
@@ -204,7 +203,7 @@ async def подробная_диагностика(interaction: discord.Interac
                     cog_status.append(f"✅ Персонажей: {characters_count}")
                 except:
                     cog_status.append("❌ Ошибка получения персонажей")
-        
+
         embed.add_field(
             name="🔗 Relationships Cog",
             value="\n".join(cog_status),
@@ -230,7 +229,7 @@ async def подробная_диагностика(interaction: discord.Interac
         system_status.append(f"🖥️ Серверов: {len(bot.guilds)}")
         system_status.append(f"📊 Задержка: {round(bot.latency * 1000)}ms")
         system_status.append(f"👑 Владелец: {bot.owner_id}")
-        
+
         embed.add_field(
             name="🔄 Состояние системы",
             value="\n".join(system_status),
@@ -255,41 +254,41 @@ async def проверка_системы(interaction: discord.Interaction):
         if not cog:
             await interaction.response.send_message("❌ Relationships ког не загружен!")
             return
-        
+
         embed = discord.Embed(title="🔍 Проверка системы", color=0x9370DB)
-        
+
         # Проверяем компоненты
         checks = []
-        
+
         # Проверка CharacterManager
         try:
             chars = cog.system.character_manager.list_characters()
             checks.append(f"✅ CharacterManager: {len(chars)} персонажей")
         except Exception as e:
             checks.append(f"❌ CharacterManager: {e}")
-        
+
         # Проверка RelationshipManager
         try:
             rels = cog.system.relationship_manager.get_all_relationships()
             checks.append(f"✅ RelationshipManager: {len(rels)} отношений")
         except Exception as e:
             checks.append(f"❌ RelationshipManager: {e}")
-        
+
         # Проверка Calculator
         try:
             desc = cog.system.calculator.get_all_descriptions()
             checks.append(f"✅ Calculator: {len(desc)} описаний")
         except Exception as e:
             checks.append(f"❌ Calculator: {e}")
-        
+
         embed.add_field(
             name="Компоненты системы",
             value="\n".join(checks),
             inline=False
         )
-        
+
         await interaction.response.send_message(embed=embed)
-        
+
     except Exception as e:
         await interaction.response.send_message(f"❌ Ошибка проверки: {e}")
 
@@ -298,7 +297,7 @@ async def тест_команды(interaction: discord.Interaction):
     """Тест команд"""
     try:
         embed = discord.Embed(title="🧪 Тест команд", color=0x9370DB)
-        
+
         # Тест добавления персонажа
         cog = bot.get_cog("Relationships")
         if cog:
@@ -317,7 +316,7 @@ async def тест_команды(interaction: discord.Interaction):
                         value="✅ Уже существует", 
                         inline=True
                     )
-                
+
                 # Тест списка персонажей
                 chars = cog.system.list_characters()
                 embed.add_field(
@@ -325,7 +324,7 @@ async def тест_команды(interaction: discord.Interaction):
                     value=f"✅ {len(chars)} шт." if chars else "❌ Нет персонажей",
                     inline=True
                 )
-                
+
                 # Тест калькулятора
                 try:
                     value, desc, effect = cog.system.calculator.roll_vinculum()
@@ -340,16 +339,16 @@ async def тест_команды(interaction: discord.Interaction):
                         value=f"❌ {e}",
                         inline=True
                     )
-                    
+
             except Exception as e:
                 embed.add_field(
                     name="Общий тест",
                     value=f"❌ {e}",
                     inline=False
                 )
-        
+
         await interaction.response.send_message(embed=embed)
-        
+
     except Exception as e:
         await interaction.response.send_message(f"❌ Ошибка теста: {e}")
 
@@ -375,22 +374,22 @@ async def синхронизировать(interaction: discord.Interaction):
     if interaction.user.id != bot.owner_id:
         await interaction.response.send_message("❌ Эта команда только для владельца бота!")
         return
-    
+
     try:
         # Синхронизируем команды
         synced = await bot.tree.sync()
-        
+
         embed = discord.Embed(
             title="🔄 Синхронизация завершена",
             description=f"Синхронизировано {len(synced)} команд:",
             color=0x00FF00
         )
-        
+
         command_list = "\n".join([f"`/{cmd.name}`" for cmd in synced])
         embed.add_field(name="Доступные команды", value=command_list, inline=False)
-        
+
         await interaction.response.send_message(embed=embed)
-        
+
     except Exception as e:
         await interaction.response.send_message(f"❌ Ошибка синхронизации: {e}")
 
@@ -400,39 +399,39 @@ async def полная_синхронизация(interaction: discord.Interacti
     if interaction.user.id != bot.owner_id:
         await interaction.response.send_message("❌ Эта команда только для владельца бота!", ephemeral=True)
         return
-    
+
     try:
         # Очищаем все команды
         bot.tree.clear_commands(guild=None)
-        
+
         # Перезагружаем коги
         for cog_name in list(bot.cogs.keys()):
             try:
                 await bot.unload_extension(f"cogs.{cog_name.lower()}")
             except:
                 pass
-        
+
         await load_cogs()
-        
+
         # Синхронизируем глобально
         synced = await bot.tree.sync()
-        
+
         # Синхронизируем для текущего сервера
         if interaction.guild:
             bot.tree.copy_global_to(guild=interaction.guild)
             guild_synced = await bot.tree.sync(guild=interaction.guild)
-        
+
         embed = discord.Embed(
             title="🔄 Полная синхронизация завершена",
             description=f"Синхронизировано {len(synced)} глобальных команд",
             color=0x00FF00
         )
-        
+
         command_list = "\n".join([f"`/{cmd.name}`" for cmd in synced])
         embed.add_field(name="Доступные команды", value=command_list, inline=False)
-        
+
         await interaction.response.send_message(embed=embed)
-        
+
     except Exception as e:
         await interaction.response.send_message(f"❌ Ошибка синхронизации: {e}")
 
@@ -442,20 +441,20 @@ async def перезагрузить(interaction: discord.Interaction):
     if interaction.user.id != bot.owner_id:
         await interaction.response.send_message("❌ Эта команда только для владельца бота!")
         return
-    
+
     try:
         # Выгружаем все коги
         for cog_name in list(bot.cogs.keys()):
             await bot.unload_extension(f"cogs.{cog_name.lower()}")
-        
+
         # Загружаем коги заново
         await load_cogs()
-        
+
         # Синхронизируем команды
         await bot.tree.sync()
-        
+
         await interaction.response.send_message("✅ Коги успешно перезагружены!")
-        
+
     except Exception as e:
         await interaction.response.send_message(f"❌ Ошибка перезагрузки: {e}")
 
@@ -468,7 +467,7 @@ async def тест(interaction: discord.Interaction):
             title="🧪 Тест системы",
             color=0x00FF00
         )
-        
+
         # Проверяем загрузку когов
         relationships_cog = bot.get_cog("Relationships")
         embed.add_field(
@@ -476,7 +475,7 @@ async def тест(interaction: discord.Interaction):
             value="✅ Загружен" if relationships_cog else "❌ Не загружен",
             inline=True
         )
-        
+
         # Проверяем систему
         if relationships_cog:
             system_loaded = hasattr(relationships_cog, 'system')
@@ -485,7 +484,7 @@ async def тест(interaction: discord.Interaction):
                 value="✅ Загружен" if system_loaded else "❌ Не загружен",
                 inline=True
             )
-            
+
             if system_loaded:
                 try:
                     characters = relationships_cog.system.list_characters()
@@ -500,7 +499,7 @@ async def тест(interaction: discord.Interaction):
                         value=f"❌ Ошибка: {e}",
                         inline=True
                     )
-        
+
         # Проверяем команды
         synced_commands = await bot.tree.fetch_commands()
         embed.add_field(
@@ -508,9 +507,9 @@ async def тест(interaction: discord.Interaction):
             value=f"✅ {len(synced_commands)} команд",
             inline=True
         )
-        
+
         await interaction.response.send_message(embed=embed)
-        
+
     except Exception as e:
         await interaction.response.send_message(f"❌ Ошибка теста: {e}")
 
@@ -519,7 +518,7 @@ async def тест(interaction: discord.Interaction):
 async def on_connect():
     # Получаем ID владельца из переменной окружения
     owner_id = os.getenv("OWNER_ID")
-    
+
     if owner_id:
         try:
             bot.owner_id = int(owner_id)
@@ -535,7 +534,7 @@ async def on_connect():
         app_info = await bot.application_info()
         bot.owner_id = app_info.owner.id
         print(f"[INFO] OWNER_ID не найден, используется владелец приложения: {bot.owner_id}")
-    
+
     print(f"[INFO] Итоговый OWNER_ID: {bot.owner_id}")
 
 @bot.event
